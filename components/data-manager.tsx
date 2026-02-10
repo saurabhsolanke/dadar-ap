@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, ArrowUpDown, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { Pencil, Trash2, Plus, ArrowUpDown, ChevronLeft, ChevronRight, Search, X, Upload } from "lucide-react";
+import { uploadImage } from "@/app/actions/upload";
 
-export type FieldType = "text" | "textarea" | "number" | "date" | "image" | "images" | "geopoint" | "rating" | "priceRange" | "select";
+export type FieldType = "text" | "textarea" | "number" | "date" | "image" | "images" | "geopoint" | "rating" | "priceRange" | "select" | "boolean";
 
 export interface FieldDefinition {
     name: string;
@@ -19,6 +20,7 @@ export interface FieldDefinition {
     type: FieldType;
     required?: boolean;
     showInTable?: boolean;
+    defaultValue?: any;
 }
 
 interface Item {
@@ -41,7 +43,7 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
     const [isEditing, setIsEditing] = useState(false); // Track edit mode
 
     const [editId, setEditId] = useState<string | null>(null);
-    const [imageInputs, setImageInputs] = useState<Record<string, string>>({});
+    const [uploading, setUploading] = useState(false);
 
     // Filter, Sort, Pagination State
     const [searchQuery, setSearchQuery] = useState("");
@@ -70,7 +72,11 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
         // Reset form data based on schema
         const initialData: any = {};
         schema.forEach(field => {
-            initialData[field.name] = field.type === "images" ? [] : "";
+            if (field.defaultValue !== undefined) {
+                 initialData[field.name] = field.defaultValue;
+            } else {
+                 initialData[field.name] = field.type === "images" ? [] : "";
+            }
         });
         setFormData(initialData);
         setIsEditing(false);
@@ -116,6 +122,17 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
         }
     };
 
+    const handleToggleField = async (id: string, fieldName: string, currentValue: boolean) => {
+        try {
+            await updateDoc(doc(db, collectionName, id), {
+                [fieldName]: !currentValue,
+                updatedAt: new Date().toISOString(),
+            });
+        } catch (error) {
+            console.error("Error updating field:", error);
+        }
+    };
+
     const handleChange = (name: string, value: any) => {
         setFormData((prev: any) => ({ ...prev, [name]: value }));
     };
@@ -149,6 +166,8 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                 return `★ ${value}`;
             case "priceRange":
                 return value;
+            case "boolean":
+                return value ? "Yes" : "No";
             default:
                 // Truncate long text
                 const str = String(value);
@@ -270,18 +289,37 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
         });
     };
 
-    const handleAddImage = (fieldName: string) => {
-        const url = imageInputs[fieldName];
-        if (!url) return;
 
-        setFormData((prev: any) => {
-            const currentImages = prev[fieldName] || [];
-            return {
-                ...prev,
-                [fieldName]: [...currentImages, url]
-            };
-        });
-        setImageInputs(prev => ({ ...prev, [fieldName]: "" }));
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const result = await uploadImage(formData);
+
+            if (result.success && result.url) {
+                setFormData((prev: Item) => {
+                    const currentImages = prev[fieldName] || [];
+                    return {
+                        ...prev,
+                        [fieldName]: [...currentImages, result.url]
+                    };
+                });
+            } else {
+                console.error("Upload failed:", result.error);
+                alert("Upload failed. Check console for details.");
+            }
+        } catch (error) {
+            console.error("Upload error:", error);
+            alert("Upload failed");
+        } finally {
+            setUploading(false);
+            e.target.value = ""; // Reset input
+        }
     };
 
     return (
@@ -433,21 +471,28 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className="flex items-center gap-2">
                                             <Input
-                                                placeholder="Enter image URL"
-                                                value={imageInputs[field.name] || ""}
-                                                onChange={(e) => setImageInputs(prev => ({ ...prev, [field.name]: e.target.value }))}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        e.preventDefault();
-                                                        handleAddImage(field.name);
-                                                    }
-                                                }}
+                                                id={`file-upload-${field.name}`}
+                                                type="file"
+                                                accept="image/*"
+                                                disabled={uploading}
+                                                onChange={(e) => handleFileUpload(e, field.name)}
+                                                className="hidden"
                                             />
-                                            <Button type="button" onClick={() => handleAddImage(field.name)}>
-                                                <Plus className="h-4 w-4" />
-                                            </Button>
+                                            <Label
+                                                htmlFor={`file-upload-${field.name}`}
+                                                className={`flex items-center gap-2 cursor-pointer px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md text-sm font-medium transition-colors ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
+                                            >
+                                                {uploading ? (
+                                                    <span className="animate-pulse">Uploading...</span>
+                                                ) : (
+                                                    <>
+                                                        <Upload className="h-4 w-4" />
+                                                        Upload Image
+                                                    </>
+                                                )}
+                                            </Label>
                                         </div>
                                     </div>
                                 )}
@@ -492,6 +537,17 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                                         type="datetime-local"
                                         value={formData[field.name] || ""}
                                         onChange={(e) => handleChange(field.name, e.target.value)}
+                                        required={field.required}
+                                    />
+                                )}
+
+                                {field.type === 'boolean' && (
+                                    <Input
+                                        id={field.name}
+                                        className="h-auto"
+                                        type="checkbox"
+                                        checked={formData[field.name] || false}
+                                        onChange={(e) => handleChange(field.name, e.target.checked)}
                                         required={field.required}
                                     />
                                 )}

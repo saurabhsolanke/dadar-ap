@@ -126,6 +126,9 @@ export default function AdminDashboard() {
         { name: "date", label: "Date", type: "date", showInTable: true },
         { name: "content", label: "Content", type: "textarea" },
         { name: "images", label: "Images", type: "images" },
+        { name: "latitude", label: "Latitude", type: "number", required: true, showInTable: true },
+        { name: "longitude", label: "Longitude", type: "number", required: true, showInTable: true },
+        { name: "isApproved", label: "Approved", type: "boolean", defaultValue: true, showInTable: true },
     ];
 
     const notificationSchema: FieldDefinition[] = [

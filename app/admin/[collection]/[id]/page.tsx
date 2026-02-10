@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Check, X } from "lucide-react";
 
 const collectionConfig: Record<string, { name: string; label: string; type: string }[]> = {
     shops: [{ name: "location", label: "Location", type: "text" }],
@@ -28,6 +28,15 @@ const collectionConfig: Record<string, { name: string; label: string; type: stri
         { name: "date", label: "Date", type: "date" },
         { name: "tags", label: "Tags", type: "text" },
         { name: "content", label: "Content", type: "textarea" },
+    ],
+    experience: [
+        { name: "title", label: "Title", type: "text" },
+        { name: "author", label: "Author", type: "text" },
+        { name: "date", label: "Date", type: "date" },
+        { name: "content", label: "Content", type: "textarea" },
+        { name: "latitude", label: "Latitude", type: "number" },
+        { name: "longitude", label: "Longitude", type: "number" },
+        { name: "isApproved", label: "Approved", type: "boolean" },
     ],
     users: [
         { name: "email", label: "Email", type: "email" },
@@ -171,6 +180,27 @@ export default function DetailPage() {
                                 onChange={handleChange}
                                 className="min-h-[200px]"
                             />
+                        ) : field.type === "boolean" ? (
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    variant={formData[field.name] ? "default" : "outline"}
+                                    className={formData[field.name] ? "bg-green-600 hover:bg-green-700" : ""}
+                                    onClick={() => setFormData({ ...formData, [field.name]: !formData[field.name] })}
+                                >
+                                    {formData[field.name] ? (
+                                        <>
+                                            <Check className="mr-2 h-4 w-4" />
+                                            Approved
+                                        </>
+                                    ) : (
+                                        <>
+                                            <X className="mr-2 h-4 w-4" />
+                                            Not Approved
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
                         ) : (
                             <Input
                                 id={field.name}
