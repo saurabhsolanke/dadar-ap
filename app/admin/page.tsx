@@ -172,7 +172,7 @@ export default function AdminDashboard() {
                     <div className="flex h-14 items-center border-b px-6 font-semibold">
                         <div className="flex items-center gap-2 font-bold">
                             <Command className="h-6 w-6" />
-                            <span>DadarSaaS</span>
+                            <span>Dadar Admin Panel</span>
                         </div>
                     </div>
                     <div className="p-4">
