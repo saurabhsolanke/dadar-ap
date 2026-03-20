@@ -140,8 +140,11 @@ export default function AdminDashboard() {
     ];
 
     const userSchema: FieldDefinition[] = [
+        { name: "id", label: "User UID", type: "text", showInTable: true },
         { name: "email", label: "Email", type: "text", required: true, showInTable: true },
         { name: "role", label: "Role", type: "text", showInTable: true },
+        { name: "createdAt", label: "Created", type: "date", showInTable: true },
+        { name: "lastSignInTime", label: "Signed In", type: "date", showInTable: true },
     ];
 
     const contactSchema: FieldDefinition[] = [

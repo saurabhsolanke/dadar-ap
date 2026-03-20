@@ -21,14 +21,14 @@ export async function getUser(uid: string) {
     };
   } catch (error) {
     console.error("Error fetching user:", error);
-    return null;
+    return { error: error instanceof Error ? error.message : String(error) };
   }
 }
 
-export async function updateUser(uid: string, data: any) {
+export async function updateUser(uid: string, data: { email?: string; displayName?: string; name?: string; role?: string }) {
   try {
     const auth = getAdminAuth();
-    const updateData: any = {};
+    const updateData: { email?: string; displayName?: string } = {};
     
     if (data.email) updateData.email = data.email;
     if (data.displayName) updateData.displayName = data.displayName; // Use Name field for displayName
@@ -43,7 +43,7 @@ export async function updateUser(uid: string, data: any) {
     return { success: true, uid: user.uid };
   } catch (error) {
     console.error("Error updating user:", error);
-    throw new Error("Failed to update user");
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -54,6 +54,24 @@ export async function deleteUser(uid: string) {
         return { success: true };
     } catch (error) {
         console.error("Error deleting user:", error);
-        throw new Error("Failed to delete user");
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
+}
+export async function listUsers() {
+  try {
+    const auth = getAdminAuth();
+    const listResult = await auth.listUsers();
+    
+    return listResult.users.map(user => ({
+      id: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.customClaims?.role || "user",
+      createdAt: user.metadata.creationTime,
+      lastSignInTime: user.metadata.lastSignInTime,
+    }));
+  } catch (error) {
+    console.error("Error listing users:", error);
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
 }

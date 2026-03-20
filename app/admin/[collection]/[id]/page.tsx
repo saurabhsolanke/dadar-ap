@@ -50,7 +50,7 @@ export default function DetailPage() {
     const collectionName = params.collection as string;
     const id = params.id as string;
 
-    const [formData, setFormData] = useState<any>({});
+    const [formData, setFormData] = useState<Record<string, string | number | boolean | string[] | undefined>>({});
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -104,9 +104,11 @@ export default function DetailPage() {
             if (collectionName === "users") {
                 await updateUser(id, formData);
             } else {
-                const docRef = doc(db, collectionName, id);
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { id: _, ...data } = formData;
-                await updateDoc(docRef, data);
+                await updateDoc(doc(db, collectionName, id), {
+                    ...data,
+                });
             }
             router.push("/admin");
         } catch (error) {

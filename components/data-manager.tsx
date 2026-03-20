@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, updateDoc } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
 import { Pencil, Trash2, Plus, ArrowUpDown, ChevronLeft, ChevronRight, Search, X, Upload } from "lucide-react";
 import { uploadImage } from "@/app/actions/upload";
+import { listUsers, deleteUser, updateUser } from "@/lib/actions/users";
 
 export type FieldType = "text" | "textarea" | "number" | "date" | "image" | "images" | "geopoint" | "rating" | "priceRange" | "select" | "boolean";
 
@@ -20,12 +21,12 @@ export interface FieldDefinition {
     type: FieldType;
     required?: boolean;
     showInTable?: boolean;
-    defaultValue?: any;
+    defaultValue?: string | number | boolean | string[];
 }
 
 interface Item {
     id: string;
-    [key: string]: any;
+    [key: string]: string | number | boolean | string[] | { seconds: number } | { latitude: number; longitude: number } | undefined;
 }
 
 interface DataManagerProps {
@@ -36,7 +37,6 @@ interface DataManagerProps {
 }
 
 export function DataManager({ collectionName, title, schema, hideTitle = false }: DataManagerProps) {
-    const router = useRouter();
     const [items, setItems] = useState<Item[]>([]);
     const [loading, setLoading] = useState(true);
     const [isOpen, setIsOpen] = useState(false);
@@ -52,9 +52,31 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
     const itemsPerPage = 10;
 
     // Form State
-    const [formData, setFormData] = useState<any>({});
+    const [formData, setFormData] = useState<Item>({ id: "" });
 
     useEffect(() => {
+        if (collectionName === "users") {
+            const fetchUsers = async () => {
+                setLoading(true);
+                try {
+                    const data = await listUsers();
+                    if (Array.isArray(data)) {
+                        setItems(data as Item[]);
+                    } else if (data && typeof data === 'object' && 'error' in data) {
+                        console.error("Server error fetching users:", data.error);
+                        setItems([]); // Clear items on error
+                        alert(`Error fetching users: ${data.error}. Please ensure Firebase Admin credentials are set in .env.local`);
+                    }
+                } catch (error) {
+                    console.error("Error fetching users:", error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+            fetchUsers();
+            return;
+        }
+
         const q = query(collection(db, collectionName));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map((doc) => ({
@@ -70,7 +92,7 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
 
     const handleOpenAdd = () => {
         // Reset form data based on schema
-        const initialData: any = {};
+        const initialData: Item = { id: "" };
         schema.forEach(field => {
             if (field.defaultValue !== undefined) {
                  initialData[field.name] = field.defaultValue;
@@ -95,12 +117,25 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
         e.preventDefault();
         try {
             if (isEditing && editId) {
-                const { id, ...dataToUpdate } = formData;
-                await updateDoc(doc(db, collectionName, editId), {
-                    ...dataToUpdate,
-                    updatedAt: new Date().toISOString(),
-                });
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { id: _, ...dataToUpdate } = formData;
+                
+                if (collectionName === "users") {
+                    await updateUser(editId, dataToUpdate as any);
+                    // Refresh users list manually since no snapshot
+                    const data = await listUsers();
+                    setItems(data as Item[]);
+                } else {
+                    await updateDoc(doc(db, collectionName, editId), {
+                        ...dataToUpdate,
+                        updatedAt: new Date().toISOString(),
+                    });
+                }
             } else {
+                if (collectionName === "users") {
+                   alert("Creating users via this form is not supported. Use the Firebase Console or an admin action.");
+                   return;
+                }
                 await addDoc(collection(db, collectionName), {
                     ...formData,
                     createdAt: new Date().toISOString(),
@@ -115,29 +150,25 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
     const handleDelete = async (id: string) => {
         if (confirm("Are you sure you want to delete this item?")) {
             try {
-                await deleteDoc(doc(db, collectionName, id));
+                if (collectionName === "users") {
+                    await deleteUser(id);
+                    // Refresh users list manually
+                    const data = await listUsers();
+                    setItems(data as Item[]);
+                } else {
+                    await deleteDoc(doc(db, collectionName, id));
+                }
             } catch (error) {
                 console.error("Error deleting document:", error);
             }
         }
     };
 
-    const handleToggleField = async (id: string, fieldName: string, currentValue: boolean) => {
-        try {
-            await updateDoc(doc(db, collectionName, id), {
-                [fieldName]: !currentValue,
-                updatedAt: new Date().toISOString(),
-            });
-        } catch (error) {
-            console.error("Error updating field:", error);
-        }
+    const handleChange = (name: string, value: string | number | boolean | string[]) => {
+        setFormData((prev: Item) => ({ ...prev, [name]: value }));
     };
 
-    const handleChange = (name: string, value: any) => {
-        setFormData((prev: any) => ({ ...prev, [name]: value }));
-    };
-
-    const formatCellValue = (value: any, type: FieldType) => {
+    const formatCellValue = (value: string | number | boolean | string[] | { seconds: number } | { latitude: number; longitude: number } | undefined, type: FieldType) => {
         if (value === undefined || value === null) return "";
 
         if (typeof value === "object" && "seconds" in value) {
@@ -146,26 +177,29 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
         }
 
         switch (type) {
-            case "date":
-                return new Date(value).toLocaleDateString();
+            case "date": {
+                const dateVal = typeof value === "string" || typeof value === "number" ? value : undefined;
+                return dateVal ? new Date(dateVal).toLocaleDateString() : "";
+            }
             case "image":
-                return value ? <img src={value} alt="Thumb" className="h-8 w-8 object-cover rounded" /> : "";
+                return value ? <Image src={value as string} alt="Thumb" width={32} height={32} className="h-8 w-8 object-cover rounded" /> : "";
             case "images":
                 return Array.isArray(value) && value.length > 0 ? (
-                    <div className="flex items-center gap-1">
-                        <img src={value[0]} alt="Thumb" className="h-8 w-8 object-cover rounded" />
+                    <div className="flex items-center gap-2">
+                        <Image src={(value as string[])[0]} alt="Thumb" width={32} height={32} className="h-8 w-8 object-cover rounded" />
                         <span className="text-xs text-muted-foreground">({value.length})</span>
                     </div>
                 ) : "0 images";
             case "geopoint":
-                if (typeof value === 'object' && value.latitude !== undefined) {
-                    return `${value.latitude.toFixed(4)}, ${value.longitude.toFixed(4)}`;
+                if (typeof value === 'object' && value !== null && !Array.isArray(value) && 'latitude' in value) {
+                    const geo = value as { latitude: number, longitude: number };
+                    return `${geo.latitude.toFixed(4)}, ${geo.longitude.toFixed(4)}`;
                 }
-                return value; // fallback
+                return String(value || ""); 
             case "rating":
                 return `★ ${value}`;
             case "priceRange":
-                return value;
+                return String(value || "");
             case "boolean":
                 return value ? "Yes" : "No";
             default:
@@ -216,14 +250,14 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
     };
 
     // Helper for GeoPoint string parsing "lat,lng"
-    const handleGeoPointChange = (name: string, value: string) => {
-        // We store as string or object? 
-        // User request: [19.0269° N, 72.8383° E] (geopoint). Firestore uses GeoPoint object.
-        // For simplicity let's try to store as { latitude: x, longitude: y } or just keep as string if not strictly firestore geopoint.
-        // Let's assume we store as { latitude: number, longitude: number } for now.
-        // But input is simple text.
-        setFormData((prev: any) => ({ ...prev, [name]: value }));
-    };
+    // const handleGeoPointChange = (name: string, value: string) => {
+    //     // We store as string or object? 
+    //     // User request: [19.0269° N, 72.8383° E] (geopoint). Firestore uses GeoPoint object.
+    //     // For simplicity let's try to store as { latitude: x, longitude: y } or just keep as string if not strictly firestore geopoint.
+    //     // Let's assume we store as { latitude: number, longitude: number } for now.
+    //     // But input is simple text.
+    //     setFormData((prev: Item) => ({ ...prev, [name]: value }));
+    // };
 
     // const handleImageUpload = async (files: FileList | null, fieldName: string) => {
     //     if (!files || files.length === 0) return;
@@ -280,11 +314,11 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
     // };
 
     const handleRemoveImage = (fieldName: string, indexToRemove: number) => {
-        setFormData((prev: any) => {
-            const currentImages = prev[fieldName] || [];
+        setFormData((prev: Item) => {
+            const currentImages = (prev[fieldName] as string[]) || [];
             return {
                 ...prev,
-                [fieldName]: currentImages.filter((_: any, index: number) => index !== indexToRemove)
+                [fieldName]: currentImages.filter((_, index: number) => index !== indexToRemove)
             };
         });
     };
@@ -303,7 +337,7 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
 
             if (result.success && result.url) {
                 setFormData((prev: Item) => {
-                    const currentImages = prev[fieldName] || [];
+                    const currentImages = (prev[fieldName] as string[]) || [];
                     return {
                         ...prev,
                         [fieldName]: [...currentImages, result.url]
@@ -449,7 +483,7 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                                 {field.type === 'textarea' && (
                                     <Textarea
                                         id={field.name}
-                                        value={formData[field.name] || ""}
+                                        value={(formData[field.name] as string | number) || ""}
                                         onChange={(e) => handleChange(field.name, e.target.value)}
                                         required={field.required}
                                     />
@@ -458,13 +492,13 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                                 {field.type === 'images' && (
                                     <div className="space-y-4">
                                         <div className="grid grid-cols-3 gap-4">
-                                            {Array.isArray(formData[field.name]) && formData[field.name].map((url: string, index: number) => (
+                                            {Array.isArray(formData[field.name]) && (formData[field.name] as string[]).map((url: string, index: number) => (
                                                 <div key={index} className="relative group aspect-square rounded-md overflow-hidden border">
-                                                    <img src={url} alt={`Upload ${index}`} className="w-full h-full object-cover" />
+                                                    <Image src={url} alt={`Upload ${index}`} fill className="object-cover" />
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemoveImage(field.name, index)}
-                                                        className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        className="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
                                                     >
                                                         <X className="h-3 w-3" />
                                                     </button>
@@ -501,7 +535,7 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                                     <Input
                                         id={field.name}
                                         type="text"
-                                        value={formData[field.name] || ""}
+                                        value={(formData[field.name] as string) || ""}
                                         onChange={(e) => handleChange(field.name, e.target.value)}
                                         required={field.required}
                                     />
@@ -512,7 +546,7 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                                         id={field.name}
                                         type="number"
                                         step="any"
-                                        value={formData[field.name] || ""}
+                                        value={(formData[field.name] as string | number) || ""}
                                         onChange={(e) => handleChange(field.name, parseFloat(e.target.value))}
                                         required={field.required}
                                     />
@@ -525,7 +559,7 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                                         step="0.1"
                                         min="0"
                                         max="5"
-                                        value={formData[field.name] || ""}
+                                        value={(formData[field.name] as string | number) || ""}
                                         onChange={(e) => handleChange(field.name, parseFloat(e.target.value))}
                                         required={field.required}
                                     />
@@ -535,7 +569,7 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                                     <Input
                                         id={field.name}
                                         type="datetime-local"
-                                        value={formData[field.name] || ""}
+                                        value={(formData[field.name] as string | number) || ""}
                                         onChange={(e) => handleChange(field.name, e.target.value)}
                                         required={field.required}
                                     />
@@ -546,7 +580,7 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                                         id={field.name}
                                         className="h-auto"
                                         type="checkbox"
-                                        checked={formData[field.name] || false}
+                                        checked={(formData[field.name] as boolean) || false}
                                         onChange={(e) => handleChange(field.name, e.target.checked)}
                                         required={field.required}
                                     />
