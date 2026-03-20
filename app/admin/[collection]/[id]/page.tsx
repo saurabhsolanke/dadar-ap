@@ -157,7 +157,7 @@ export default function DetailPage() {
                     <Input
                         id="name"
                         name="name"
-                        value={formData.name || ""}
+                        value={(formData.name as any) || ""}
                         onChange={handleChange}
                         required
                     />
@@ -167,7 +167,7 @@ export default function DetailPage() {
                     <Input
                         id="description"
                         name="description"
-                        value={formData.description || ""}
+                        value={(formData.description as any) || ""}
                         onChange={handleChange}
                     />
                 </div>
@@ -178,7 +178,7 @@ export default function DetailPage() {
                             <Textarea
                                 id={field.name}
                                 name={field.name}
-                                value={formData[field.name] || ""}
+                                value={(formData[field.name] as any) || ""}
                                 onChange={handleChange}
                                 className="min-h-[200px]"
                             />
@@ -208,7 +208,7 @@ export default function DetailPage() {
                                 id={field.name}
                                 name={field.name}
                                 type={field.type}
-                                value={formData[field.name] || ""}
+                                value={(formData[field.name] as any) || ""}
                                 onChange={handleChange}
                             />
                         )}
