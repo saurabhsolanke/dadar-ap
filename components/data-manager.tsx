@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Pencil, Trash2, Plus, ArrowUpDown, ChevronLeft, ChevronRight, Search, X, Upload } from "lucide-react";
 import { uploadImage } from "@/app/actions/upload";
 import { listUsers, deleteUser, updateUser } from "@/lib/actions/users";
+import { toast } from "sonner";
 
 export type FieldType = "text" | "textarea" | "number" | "date" | "image" | "images" | "geopoint" | "rating" | "priceRange" | "select" | "boolean";
 
@@ -65,7 +66,9 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                     } else if (data && typeof data === 'object' && 'error' in data) {
                         console.error("Server error fetching users:", data.error);
                         setItems([]); // Clear items on error
-                        alert(`Error fetching users: ${data.error}. Please ensure Firebase Admin credentials are set in .env.local`);
+                        toast.error(`Error fetching users: ${data.error}`, {
+                            description: "Please ensure Firebase Admin credentials are set in .env.local"
+                        });
                     }
                 } catch (error) {
                     console.error("Error fetching users:", error);
@@ -133,7 +136,7 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                 }
             } else {
                 if (collectionName === "users") {
-                   alert("Creating users via this form is not supported. Use the Firebase Console or an admin action.");
+                   toast.warning("Creating users via this form is not supported. Use the Firebase Console or an admin action.");
                    return;
                 }
                 await addDoc(collection(db, collectionName), {
@@ -345,11 +348,13 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
                 });
             } else {
                 console.error("Upload failed:", result.error);
-                alert("Upload failed. Check console for details.");
+                toast.error("Upload failed", {
+                    description: "Check console for details."
+                });
             }
         } catch (error) {
             console.error("Upload error:", error);
-            alert("Upload failed");
+            toast.error("Upload failed");
         } finally {
             setUploading(false);
             e.target.value = ""; // Reset input
@@ -468,7 +473,7 @@ export function DataManager({ collectionName, title, schema, hideTitle = false }
             )}
 
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                <DialogContent className="max-h-[80vh] overflow-y-auto">
+                <DialogContent className="max-h-[80vh] overflow-y-auto bg-background dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 opacity-100 shadow-2xl">
                     <DialogHeader>
                         <DialogTitle>{isEditing ? 'Edit' : 'Add'} {title.slice(0, -1)}</DialogTitle>
                         <DialogDescription>
