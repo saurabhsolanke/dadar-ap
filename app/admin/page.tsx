@@ -19,7 +19,8 @@ import {
     Search,
     ChevronRight,
     Command,
-    LogOut
+    LogOut,
+    ImagePlus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ export default function AdminDashboard() {
                 { id: "events", label: "Events", icon: Calendar },
                 { id: "hotels", label: "Hotels", icon: Building2 },
                 { id: "places", label: "Places", icon: MapPin },
+                { id: "banner", label: "Banners", icon: ImagePlus },
             ]
         },
         {
@@ -153,6 +155,14 @@ export default function AdminDashboard() {
         { name: "phone", label: "Phone", type: "text", showInTable: true },
         { name: "message", label: "Message", type: "textarea", showInTable: true },
         { name: "createdAt", label: "Date", type: "date", showInTable: true },
+    ];
+
+    const bannerSchema: FieldDefinition[] = [
+        { name: "title", label: "Title", type: "text", required: true, showInTable: true },
+        { name: "images", label: "Images", type: "images", showInTable: true },
+        { name: "link", label: "Link", type: "text" },
+        { name: "location", label: "Location", type: "text" },
+        { name: "time", label: "Time", type: "date" },
     ];
 
     const getActiveGroup = () => {
@@ -265,6 +275,9 @@ export default function AdminDashboard() {
                                     )}
                                     {activeView === "experience" && (
                                         <DataManager collectionName="experience" title="Experience" schema={experienceSchema} hideTitle />
+                                    )}
+                                    {activeView === "banner" && (
+                                        <DataManager collectionName="banner" title="Banner" schema={bannerSchema} hideTitle />
                                     )}
                                     {activeView === "users" && (
                                         <DataManager collectionName="users" title="Users" schema={userSchema} hideTitle />
